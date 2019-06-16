@@ -20,10 +20,11 @@ def download( url='http://lapis.nichibun.ac.jp/waka/waka_i072.html', filename=_f
     poems = []
     for line in html[3:]:
         poem = str(line).split()[6]
+        #poem = '#'+poem.replace('\n','').replace('.','') +'@'
         poem = '#'+poem.replace('−','').replace('.','') +'@'
         if not 'х' in poem:
             poems.append(poem)
-    with open(filename,'w',encoding='UTF-8') as fp:
+    with open(filename,'w',encoding='UTF-8',newline='') as fp:
         writer = csv.writer(fp)
         writer.writerows(poems)
 
@@ -39,25 +40,25 @@ def l2n(data):
     for line in data:
         letters |= set(line)
         length = max(length,len(line))
-    letters = {letter:index for index,letter in enumerate(sorted(letters))}
+    dictionary = {letter:index for index,letter in enumerate(sorted(letters))}
 
     output = []
     for line in data:
         d = []
         for k,x in enumerate(line):
-            d.append(letters[x])
+            d.append(dictionary[x])
         else:
-            d.extend([letters['@']]*(length-k-1))
+            d.extend([dictionary['@']]*(length-k-1))
             output.append(d)
-    return output
+    return output, dictionary
 
 
 def generate(line,grams=3):
     x = []
     y = []
-    for k in range(len(line)-grams-1):
-        x.append(line[k:k+grams])
-        y.append(line[k+grams])
+    for k in range(grams,len(line)-1):
+        x.append(line[k-grams:k])
+        y.append(line[k+1])
     return(x,y)
 
 def build(in_size,out_size,layers=4,dropout=0.2,hidden=256):
@@ -91,11 +92,39 @@ def training(model,X,Y):
         callbacks=[early_stopping])
     return history
 
-if __name__ == '__main__':
-    #download()
-    grams = 4
+def Maro_describe(letters,loop=1):
     raw_data = read()
-    num_data = l2n(raw_data)
+    num_data, dictionary = l2n(raw_data)
+    inv = {y:x for x,y in dictionary.items()}
+
+    filename='maro.h5'
+    model = load_model(filename)
+
+    poem = list(letters)
+    temp = 0.3
+    while True:
+        d=[]
+        for x in poem[-len(letters):]:
+            d.append(dictionary[x])
+        X = to_categorical(d,num_classes=len(dictionary))
+        X = np.reshape(X,(1,*X.shape))
+        Y = model.predict(X)
+        Z = np.asarray(Y[0]).astype('float64')
+        Z[Z<1e-10]=1e-10
+        Z = np.exp(np.log(Z)/temp)
+        Z = np.random.multinomial(1,Z/np.sum(Z),1)
+        y = inv[np.argmax(Z)]
+        if y=='@':
+            break
+        else:
+            poem.append(y)
+    return poem
+
+def Maro_learn(new=True):
+    grams = 4
+    filename='maro.h5'
+    raw_data = read()
+    num_data, dictionary = l2n(raw_data)
     X=[]
     Y=[]
     for line in num_data:
@@ -107,6 +136,30 @@ if __name__ == '__main__':
     Y = to_categorical(Y)
     X = np.reshape(X,(X.shape[0]*X.shape[1],X.shape[2],X.shape[3]))
     Y = np.reshape(Y,(Y.shape[0]*Y.shape[1],Y.shape[2]))
-    model = build(in_size=(X.shape[1],X.shape[2]),out_size=Y.shape[1])
+    if new:
+        model = build(in_size=(X.shape[1],X.shape[2]),out_size=Y.shape[1])
+    else:
+        model = load_model(filename)
+
     history = training(model,X,Y)
-    model.save('maro.h5')
+    model.save(filename)
+
+if __name__ == '__main__':
+    import argparse as ap
+    parser = ap.ArgumentParser()
+    parser.add_argument('-t','--training',action='store_true')
+    parser.add_argument('-c','--cont',action='store_true')
+    parser.add_argument('-u','--update_csv',action='store_true')
+    parser.add_argument('-i','--intro',nargs='?',type=str,const='あしひきの',default='やまさとは')
+    args = parser.parse_args()
+
+    if args.update_csv:
+        download()
+    elif args.training:
+        Maro_learn(new=True)
+    elif args.cont:
+        Maro_learn(new=False)
+    else:
+        letters = '#'+args.intro[:3]
+        poem = Maro_describe(letters)
+        print(''.join(poem))
