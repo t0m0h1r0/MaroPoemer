@@ -23,7 +23,7 @@ def download( url='http://lapis.nichibun.ac.jp/waka/waka_i072.html', filename=_f
         poem = '#'+poem.replace('−','').replace('.','') +'@'
         if not 'х' in poem:
             poems.append(poem)
-    with open(filename,'w') as fp:
+    with open(filename,'w',encoding='UTF-8') as fp:
         writer = csv.writer(fp)
         writer.writerows(poems)
 
@@ -93,13 +93,13 @@ def training(model,X,Y):
 
 if __name__ == '__main__':
     #download()
-    gram = 4
+    grams = 4
     raw_data = read()
     num_data = l2n(raw_data)
     X=[]
     Y=[]
     for line in num_data:
-        x,y = generate(line, grams=gram)
+        x,y = generate(line, grams=grams)
         X.append(x)
         Y.append(y)
 
