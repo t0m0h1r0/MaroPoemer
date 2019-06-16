@@ -29,7 +29,7 @@ def download( url='http://lapis.nichibun.ac.jp/waka/waka_i072.html', filename=_f
 
 
 def read(filename=_filename):
-    with open(filename,'r') as fp:
+    with open(filename,'r',encoding='utf-8') as fp:
         raw_data = list(csv.reader(fp))
     return raw_data
 
@@ -76,14 +76,14 @@ def build(in_size,out_size,layers=4,dropout=0.2,hidden=256):
     label = Dense(units=out_size)(x)
     output = Activation('softmax')(label)
     model = Model(inputs=input_raw,outputs=output)
-    model.compile(loss='mse', optimizer='nadam', metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
     return model
 
 def training(model,X,Y):
     early_stopping = EarlyStopping(patience=50, verbose=1)
     history = model.fit(
         X, Y,
-        epochs=1000,
+        epochs=100,
         batch_size=64,
         validation_split=0.2,
         shuffle=False,
