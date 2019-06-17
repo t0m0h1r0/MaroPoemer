@@ -13,6 +13,17 @@ from keras.optimizers import Adam, RMSprop
 from keras.callbacks import EarlyStopping
 from keras.utils.np_utils import to_categorical
 from keras.utils import multi_gpu_model
+import keras.backend as K 
+
+class KerasSession:
+    def __enter__(self):
+        #メモリを動的に拡張
+        cfg = K.tf.ConfigProto()
+        cfg.gpu_options.allow_growth = True
+        K.set_session(K.tf.Session(config=cfg))
+    def __exit__(self, ex_value, ex_type, trace):
+        #繰り返し実行するとメモリリークするので、セッションを一旦クリアする
+        K.clear_session()
 
 _filename = 'poem.csv'
 
@@ -33,7 +44,8 @@ class Maro:
             x = Bidirectional(LSTM(
                 units=hidden,
                 return_sequences=s,
-                activation='relu',
+                #activation='relu',
+                #kernel_initializer='he_uniform',
                 ))(x)
         label = Dense(units=out_size)(x)
         output = Activation('softmax')(label)
@@ -86,10 +98,11 @@ class Maro:
         return ''.join(poem).replace('#','')
 
     def _prob(self,x,amp=0.8):
-        Y = np.copy(x)
-        Y[Y<1e-10]=1e-10
+        Y = np.asarray(x).astype('float64')
+        #Y[Y<1e-10]=1e-10
         Y = np.exp(np.log(Y)/amp)
-        Y = np.random.multinomial(1,Y/np.sum(Y),1)
+        Y = Y/np.sum(Y)
+        Y = np.random.multinomial(1,Y,1)
         return np.argmax(Y)
 
     def download(self,url='http://lapis.nichibun.ac.jp/waka/waka_i072.html'):
@@ -152,25 +165,28 @@ if __name__ == '__main__':
     parser.add_argument('-i','--intro',nargs='?',type=str,const='あしひきの',default='やまさとは')
     args = parser.parse_args()
 
-    m = Maro(filename='maro.csv')
+    m = Maro(filename='maro.csv',grams=5)
     if args.update_csv:
         m.download()
 
     elif args.training:
         X,Y = m.generate()
-        model = m.build(X.shape[1:],Y.shape[1])
-        m.training(model,X,Y)
-        m.save(model)
+        with KerasSession() as ks:
+            model = m.build(X.shape[1:],Y.shape[1])
+            m.training(model,X,Y)
+            m.save(model)
 
     elif args.cont:
         X,Y = m.generate()
-        model = m.load()
-        m.training(model,X,Y)
-        m.save(model)
+        with KerasSession() as ks:
+            model = m.load()
+            m.training(model,X,Y)
+            m.save(model)
 
     else:
         letters = args.intro
-        model = m.load()
-        for k in range(20):
-            poem = m.describe(model,letters=letters)
-            print(''.join(poem))
+        with KerasSession() as ks:
+            model = m.load()
+            for k in range(20):
+                poem = m.describe(model,letters=letters)
+                print(poem)
