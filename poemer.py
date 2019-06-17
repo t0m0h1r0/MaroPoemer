@@ -92,16 +92,14 @@ def training(model,X,Y):
         callbacks=[early_stopping])
     return history
 
-def Maro_describe(letters,loop=1):
+def Maro_describe(model,letters):
     raw_data = read()
     num_data, dictionary = l2n(raw_data)
     inv = {y:x for x,y in dictionary.items()}
 
-    filename='maro.h5'
-    model = load_model(filename)
 
     poem = list(letters)
-    temp = 0.3
+    temp = 0.9
     while True:
         d=[]
         for x in poem[-len(letters):]:
@@ -161,5 +159,8 @@ if __name__ == '__main__':
         Maro_learn(new=False)
     else:
         letters = '#'+args.intro[:3]
-        poem = Maro_describe(letters)
-        print(''.join(poem))
+        filename='maro.h5'
+        model = load_model(filename)
+        for k in range(20):
+            poem = Maro_describe(model,letters)
+            print(''.join(poem))
