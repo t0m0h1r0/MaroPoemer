@@ -15,132 +15,128 @@ from keras.utils.np_utils import to_categorical
 from keras.utils import multi_gpu_model
 
 _filename = 'poem.csv'
-def download( url='http://lapis.nichibun.ac.jp/waka/waka_i072.html', filename=_filename):
-    html = pd.read_html(url)
-    poems = []
-    for line in html[3:]:
-        poem = str(line).split()[6]
-        #poem = '#'+poem.replace('\n','').replace('.','') +'@'
-        poem = '#'+poem.replace('−','').replace('.','') +'@'
-        if not 'х' in poem:
-            poems.append(poem)
-    with open(filename,'w',encoding='UTF-8',newline='') as fp:
-        writer = csv.writer(fp)
-        writer.writerows(poems)
 
+class Maro:
+    def __init__(self,filename=_filename,grams=3):
+        self.filename = filename
+        self.grams = grams
 
-def read(filename=_filename):
-    with open(filename,'r',encoding='utf-8') as fp:
-        raw_data = list(csv.reader(fp))
-    return raw_data
+    def build(self, in_shape, out_size, layers=4, dropout=0.2, hidden=256):
+        input_raw = Input(shape=in_shape)
+        x = input_raw
+        for k in range(layers):
+            if k != layers-1:
+                s = True
+            else:
+                s = False
+            x = Dropout(dropout)(x)
+            x = Bidirectional(LSTM(
+                units=hidden,
+                return_sequences=s,
+                activation='relu',
+                ))(x)
+        label = Dense(units=out_size)(x)
+        output = Activation('softmax')(label)
+        model = Model(inputs=input_raw,outputs=output)
+        model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
+        return model
 
-def l2n(data):
-    letters = set()
-    length = 0
-    for line in data:
-        letters |= set(line)
-        length = max(length,len(line))
-    dictionary = {letter:index for index,letter in enumerate(sorted(letters))}
+    def generate(self):
+        poems = self._read()
+        l2n_map, n2l_map = self._map(poems)
+        n_poems = self._vectorize(l2n_map,poems)
+        x = []
+        y = []
+        for poem in n_poems:
+            for k in range(self.grams,len(poem)):
+                x.append(poem[k-self.grams:k])
+                y.append(poem[k])
 
-    output = []
-    for line in data:
-        d = []
-        for k,x in enumerate(line):
-            d.append(dictionary[x])
-        else:
-            d.extend([dictionary['@']]*(length-k-1))
+        X = to_categorical(x)
+        Y = to_categorical(y)
+        return X,Y
+
+    def training(self,model,X,Y):
+        early_stopping = EarlyStopping(patience=50, verbose=1)
+        history = model.fit(
+            X, Y,
+            epochs=100,
+            batch_size=64,
+            validation_split=0.2,
+            shuffle=False,
+            verbose=1,
+            callbacks=[early_stopping])
+        return history
+
+    def describe(self,model,letter='#######'):
+        poems = self._read()
+        l2n_map, n2l_map = self._map(poems)
+
+        poem = list(letters)
+        while True:
+            d = [ l2n_map[x] for x in poem[-self.grams:] ]
+            X = to_categorical(d,num_classes=len(l2n_map))
+            X = np.reshape(X,(1,*X.shape))
+            Y = model.predict(X)
+            Y[Y<1e-10]=1e-10
+            Y = np.exp(np.log(Y)/temp)
+            Y = np.random.multinomial(1,Y/np.sum(Y),1)
+            y = n2l_map[np.argmax(Y)]
+            if y=='@':
+                break
+            else:
+                poem.append(y)
+        return poem
+
+    def download(self,url='http://lapis.nichibun.ac.jp/waka/waka_i072.html'):
+        html = pd.read_html(url)
+        poems = []
+        for line in html[3:]:
+            poem = str(line).split()[6]
+            poem = poem.replace('−','').replace('.','')
+            if not 'х' in poem:
+                poems.append(poem)
+        with open(self.filename,'w',encoding='UTF-8',newline='') as fp:
+            writer = csv.writer(fp)
+            writer.writerows(poems)
+
+    def _read(self):
+        poems = []
+        with open(self.filename,'r',encoding='utf-8') as fp:
+            reader = csv.reader(fp)
+            for line in reader:
+                poem = list('#'*self.grams)+line+list('@')
+                poems.append(poem)
+        return poems
+
+    def _map(self,poems):
+        letters = set()
+        for poem in poems:
+            letters |= set(poem)
+        l2n_map = {letter:index for index,letter in enumerate(sorted(letters))}
+        n2l_map = {index:letter for index,letter in enumerate(sorted(letters))}
+        return l2n_map, n2l_map
+
+    def _maxlength(self,poem):
+        length = 0
+        for poem in poems:
+            length = max(length,len(poem))
+        return length
+
+    def _vectorize(self,l2n_map,poems):
+        output = []
+        for poem in poems:
+            d = []
+            for k,x in enumerate(poem):
+                d.append(l2n_map[x])
             output.append(d)
-    return output, dictionary
+        return output
 
+    def save(self,model):
+        model.save(self.filename+'.h5')
+    def load(self):
+        model=load_model(self.filename+'.h5')
 
-def generate(line,grams=3):
-    x = []
-    y = []
-    for k in range(grams,len(line)-1):
-        x.append(line[k-grams:k])
-        y.append(line[k+1])
-    return(x,y)
-
-def build(in_size,out_size,layers=4,dropout=0.2,hidden=256):
-    input_raw = Input(shape=in_size)
-    x = input_raw
-    for k in range(layers):
-        if k != layers-1:
-            s = True
-        else:
-            s = False
-        x = Dropout(dropout)(x)
-        x = Bidirectional(LSTM(
-            units=hidden,
-            return_sequences=s,
-            ))(x)
-    label = Dense(units=out_size)(x)
-    output = Activation('softmax')(label)
-    model = Model(inputs=input_raw,outputs=output)
-    model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
-    return model
-
-def training(model,X,Y):
-    early_stopping = EarlyStopping(patience=50, verbose=1)
-    history = model.fit(
-        X, Y,
-        epochs=100,
-        batch_size=64,
-        validation_split=0.2,
-        shuffle=False,
-        verbose=1,
-        callbacks=[early_stopping])
-    return history
-
-def Maro_describe(model,letters):
-    raw_data = read()
-    num_data, dictionary = l2n(raw_data)
-    inv = {y:x for x,y in dictionary.items()}
-
-
-    poem = list(letters)
-    temp = 0.9
-    while True:
-        d=[]
-        for x in poem[-len(letters):]:
-            d.append(dictionary[x])
-        X = to_categorical(d,num_classes=len(dictionary))
-        X = np.reshape(X,(1,*X.shape))
-        Y = model.predict(X)
-        Z = np.asarray(Y[0]).astype('float64')
-        Z[Z<1e-10]=1e-10
-        Z = np.exp(np.log(Z)/temp)
-        Z = np.random.multinomial(1,Z/np.sum(Z),1)
-        y = inv[np.argmax(Z)]
-        if y=='@':
-            break
-        else:
-            poem.append(y)
-    return poem
-
-def Maro_learn(new=True):
-    grams = 4
-    filename='maro.h5'
-    raw_data = read()
-    num_data, dictionary = l2n(raw_data)
-    X=[]
-    Y=[]
-    for line in num_data:
-        x,y = generate(line, grams=grams)
-        X.append(x)
-        Y.append(y)
-
-    X = to_categorical(X)
-    Y = to_categorical(Y)
-    X = np.reshape(X,(X.shape[0]*X.shape[1],X.shape[2],X.shape[3]))
-    Y = np.reshape(Y,(Y.shape[0]*Y.shape[1],Y.shape[2]))
-    if new:
-        model = build(in_size=(X.shape[1],X.shape[2]),out_size=Y.shape[1])
-    else:
-        model = load_model(filename)
-
-    history = training(model,X,Y)
-    model.save(filename)
 
 if __name__ == '__main__':
     import argparse as ap
@@ -151,16 +147,25 @@ if __name__ == '__main__':
     parser.add_argument('-i','--intro',nargs='?',type=str,const='あしひきの',default='やまさとは')
     args = parser.parse_args()
 
+    m = Maro(filename='maro.csv')
     if args.update_csv:
-        download()
+        m.download()
+
     elif args.training:
-        Maro_learn(new=True)
+        X,Y = m.generate()
+        model = m.build(X.shape[1:],Y.shape[1])
+        m.training(model,X,Y)
+        m.save(model)
+
     elif args.cont:
-        Maro_learn(new=False)
+        X,Y = m.generate()
+        model = m.load()
+        m.training(model,X,Y)
+        m.save(model)
+
     else:
-        letters = '#'+args.intro[:3]
-        filename='maro.h5'
-        model = load_model(filename)
+        letters = args.intro
+        model = m.load()
         for k in range(20):
-            poem = Maro_describe(model,letters)
+            poem = m.describe(model,letters=letters)
             print(''.join(poem))
