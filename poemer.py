@@ -60,7 +60,7 @@ class Maro:
         early_stopping = EarlyStopping(patience=50, verbose=1)
         history = model.fit(
             X, Y,
-            epochs=100,
+            epochs=120,
             batch_size=64,
             validation_split=0.2,
             shuffle=False,
@@ -68,7 +68,7 @@ class Maro:
             callbacks=[early_stopping])
         return history
 
-    def describe(self,model,letter='#######'):
+    def describe(self,model,letters='#######'):
         poems = self._read()
         l2n_map, n2l_map = self._map(poems)
 
@@ -78,15 +78,19 @@ class Maro:
             X = to_categorical(d,num_classes=len(l2n_map))
             X = np.reshape(X,(1,*X.shape))
             Y = model.predict(X)
-            Y[Y<1e-10]=1e-10
-            Y = np.exp(np.log(Y)/temp)
-            Y = np.random.multinomial(1,Y/np.sum(Y),1)
-            y = n2l_map[np.argmax(Y)]
+            y = n2l_map[self._prob(Y[0])]
             if y=='@':
                 break
             else:
                 poem.append(y)
-        return poem
+        return ''.join(poem).replace('#','')
+
+    def _prob(self,x,amp=0.8):
+        Y = np.copy(x)
+        Y[Y<1e-10]=1e-10
+        Y = np.exp(np.log(Y)/amp)
+        Y = np.random.multinomial(1,Y/np.sum(Y),1)
+        return np.argmax(Y)
 
     def download(self,url='http://lapis.nichibun.ac.jp/waka/waka_i072.html'):
         html = pd.read_html(url)
@@ -136,6 +140,7 @@ class Maro:
         model.save(self.filename+'.h5')
     def load(self):
         model=load_model(self.filename+'.h5')
+        return model
 
 
 if __name__ == '__main__':
