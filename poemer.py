@@ -13,7 +13,7 @@ from keras.optimizers import Adam, RMSprop
 from keras.callbacks import EarlyStopping
 from keras.utils.np_utils import to_categorical
 from keras.utils import multi_gpu_model
-import keras.backend as K 
+import keras.backend as K
 
 class KerasSession:
     def __enter__(self):
@@ -169,10 +169,11 @@ if __name__ == '__main__':
     parser.add_argument('-c','--cont',action='store_true')
     parser.add_argument('-u','--update_csv',action='store_true')
     parser.add_argument('-i','--intro',nargs='?',type=str,const='',default='')
+    parser.add_argument('-f','--filename',type=str,default='maro.csv')
     args = parser.parse_args()
 
     grams = 5
-    m = Maro(filename='maro.csv',grams=grams)
+    m = Maro(filename=args.filename,grams=grams)
     if args.update_csv:
         m.download()
 
