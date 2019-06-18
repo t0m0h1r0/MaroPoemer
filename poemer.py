@@ -200,7 +200,7 @@ if __name__ == '__main__':
         with KerasSession() as ks:
             model = m.load()
             count = 0
-            while True
+            while True:
                 poem = m.describe(model,letters=letters)
                 if len(poem)>=30 and len(poem)<=32:
                     print(poem)
