@@ -199,6 +199,11 @@ if __name__ == '__main__':
             letters = letters[:grams]
         with KerasSession() as ks:
             model = m.load()
-            for k in range(20):
+            count = 0
+            while True
                 poem = m.describe(model,letters=letters)
-                print(poem)
+                if len(poem)>=30 and len(poem)<=32:
+                    print(poem)
+                    count += 1
+                    if count >20:
+                        break
