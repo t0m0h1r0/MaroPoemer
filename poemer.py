@@ -41,7 +41,7 @@ class Maro:
             else:
                 s = False
             x = Dropout(dropout)(x)
-            x = Bidirectional(LSTM(
+            x = Bidirectional(GRU(
                 units=hidden,
                 return_sequences=s,
                 #activation='relu',
@@ -140,12 +140,6 @@ class Maro:
         n2l_map = {index:letter for index,letter in enumerate(sorted(letters))}
         return l2n_map, n2l_map
 
-    def _maxlength(self,poem):
-        length = 0
-        for poem in poems:
-            length = max(length,len(poem))
-        return length
-
     def _vectorize(self,l2n_map,poems):
         output = []
         for poem in poems:
@@ -203,7 +197,7 @@ if __name__ == '__main__':
             count = 0
             while True:
                 poem = m.describe(model,letters=letters)
-                if not args.ruled and len(poem)<30 and len(poem)>32:
+                if args.ruled and len(poem)<30 and len(poem)>32:
                     continue
                 print(poem)
                 count += 1
