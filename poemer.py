@@ -74,7 +74,11 @@ class Maro:
         return X,Y
 
     def training(self,model,X,Y):
-        early_stopping = EarlyStopping(patience=50, verbose=1)
+        early_stopping = EarlyStopping(
+            patience=50,
+            verbose=1,
+            restore_best_weights=True,
+            )
         history = model.fit(
             X, Y,
             epochs=120,
