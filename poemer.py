@@ -17,16 +17,18 @@ import keras.backend as K
 
 class KerasSession:
     def __enter__(self):
-        #メモリを動的に拡張
         cfg = K.tf.ConfigProto()
+        #メモリを動的に拡張
         cfg.gpu_options.allow_growth = True
+        #0のGPUのみを使用
+        #他GPUを使うならset CUDA_VISIBLE_DEVICES=1 & python poemer.pyといった感じで環境変数で切替え
+        cfg.gpu_options.visible_device_list = '0'
         K.set_session(K.tf.Session(config=cfg))
     def __exit__(self, ex_value, ex_type, trace):
         #繰り返し実行するとメモリリークするので、セッションを一旦クリアする
         K.clear_session()
 
 _filename = 'poem.csv'
-
 class Maro:
     def __init__(self,filename=_filename,grams=3):
         self.filename = filename
@@ -41,11 +43,9 @@ class Maro:
             else:
                 s = False
             x = Dropout(dropout)(x)
-            x = Bidirectional(GRU(
+            x = Bidirectional(LSTM(
                 units=hidden,
                 return_sequences=s,
-                #activation='relu',
-                #kernel_initializer='he_uniform',
                 ))(x)
         label = Dense(
             units=out_size*7,
@@ -78,14 +78,14 @@ class Maro:
         history = model.fit(
             X, Y,
             epochs=120,
-            batch_size=64,
+            batch_size=256,
             validation_split=0.2,
             shuffle=False,
             verbose=1,
             callbacks=[early_stopping])
         return history
 
-    def describe(self,model,letters='#######'):
+    def describe(self,model,letters='#######',disruption=0.8):
         poems = self._read()
         l2n_map, n2l_map = self._map(poems)
 
@@ -95,17 +95,17 @@ class Maro:
             X = to_categorical(d,num_classes=len(l2n_map))
             X = np.reshape(X,(1,*X.shape))
             Y = model.predict(X)
-            y = n2l_map[self._prob(Y[0])]
+            y = n2l_map[self._prob(Y[0],disruption=disruption)]
             if y=='@':
                 break
             else:
                 poem.append(y)
         return ''.join(poem).replace('#','')
 
-    def _prob(self,x,amp=0.8):
+    def _prob(self,x,disruption=0.8):
         Y = np.asarray(x).astype('float64')
         #Y[Y<1e-10]=1e-10
-        Y = np.exp(np.log(Y)/amp)
+        Y = np.exp(np.log(Y)/disruption)
         Y = Y/np.sum(Y)
         Y = np.random.multinomial(1,Y,1)
         return np.argmax(Y)
@@ -150,9 +150,9 @@ class Maro:
         return output
 
     def save(self,model):
-        model.save(self.filename+'.h5')
+        model.save('%s.%d.h5'%(self.filename,self.grams))
     def load(self):
-        model=load_model(self.filename+'.h5')
+        model=load_model('%s.%d.h5'%(self.filename,self.grams))
         return model
 
 
@@ -165,6 +165,8 @@ if __name__ == '__main__':
     parser.add_argument('-i','--intro',nargs='?',type=str,const='',default='')
     parser.add_argument('-f','--filename',type=str,default='maro.csv')
     parser.add_argument('-r','--ruled',action='store_true')
+    parser.add_argument('-g','--grams',type=int,default=5)
+    parser.add_argument('-d','--disruption',type=float,default=0.8)
     args = parser.parse_args()
 
     grams = 5
@@ -196,8 +198,12 @@ if __name__ == '__main__':
             model = m.load()
             count = 0
             while True:
-                poem = m.describe(model,letters=letters)
-                if args.ruled and len(poem)<30 and len(poem)>32:
+                poem = m.describe(
+                    model,
+                    letters=letters,
+                    disruption=args.disruption
+                    )
+                if args.ruled and (len(poem)<30 or len(poem)>32):
                     continue
                 print(poem)
                 count += 1
