@@ -90,7 +90,10 @@ class Maro:
         return history
 
     def describe(self,model,letters='#######',disruption=0.8):
+        import random
         poems = self._read()
+        random.shuffle(poems)
+
         l2n_map, n2l_map = self._map(poems)
 
         poem = list(letters)
