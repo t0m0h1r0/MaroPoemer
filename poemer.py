@@ -47,6 +47,11 @@ class Maro:
                 #activation='relu',
                 #kernel_initializer='he_uniform',
                 ))(x)
+        label = Dense(
+            units=out_size*7,
+            activation='relu',
+            kernel_initializer='he_uniform',
+            )(x)
         label = Dense(units=out_size)(x)
         output = Activation('softmax')(label)
         model = Model(inputs=input_raw,outputs=output)
@@ -106,6 +111,7 @@ class Maro:
         return np.argmax(Y)
 
     def download(self,url='http://lapis.nichibun.ac.jp/waka/waka_i072.html'):
+        pd.set_option("display.max_colwidth", 300)
         html = pd.read_html(url)
         poems = []
         for line in html[3:]:
@@ -162,10 +168,11 @@ if __name__ == '__main__':
     parser.add_argument('-t','--training',action='store_true')
     parser.add_argument('-c','--cont',action='store_true')
     parser.add_argument('-u','--update_csv',action='store_true')
-    parser.add_argument('-i','--intro',nargs='?',type=str,const='あしひきの',default='やまさとは')
+    parser.add_argument('-i','--intro',nargs='?',type=str,const='',default='')
     args = parser.parse_args()
 
-    m = Maro(filename='maro.csv',grams=5)
+    grams = 5
+    m = Maro(filename='maro.csv',grams=grams)
     if args.update_csv:
         m.download()
 
@@ -185,6 +192,10 @@ if __name__ == '__main__':
 
     else:
         letters = args.intro
+        if len(letters)<grams:
+            letters = '#'*(grams-len(letters))+letters
+        else:
+            letters = letters[:grams]
         with KerasSession() as ks:
             model = m.load()
             for k in range(20):
