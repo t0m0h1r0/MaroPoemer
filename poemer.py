@@ -170,7 +170,7 @@ if __name__ == '__main__':
     parser.add_argument('-u','--update_csv',action='store_true')
     parser.add_argument('-i','--intro',nargs='?',type=str,const='',default='')
     parser.add_argument('-f','--filename',type=str,default='maro.csv')
-    parser.add_argument('-w','--waka',action='store_true')
+    parser.add_argument('-r','--ruled',action='store_true')
     args = parser.parse_args()
 
     grams = 5
@@ -203,7 +203,7 @@ if __name__ == '__main__':
             count = 0
             while True:
                 poem = m.describe(model,letters=letters)
-                if not args.waka and len(poem)<30 and len(poem)>32:
+                if not args.ruled and len(poem)<30 and len(poem)>32:
                     continue
                 print(poem)
                 count += 1
